@@ -128,7 +128,7 @@ def do_and_form(expressions, env):
     >>> env = create_global_frame()
     >>> do_and_form(read_line("(#f (print 1))"), env) # evaluating (and #f (print 1))
     False
-    >>> # evaluating (and (print 1) (print 2) (print 4) 3 #f)
+    >>> # evaluating (and (print 1) (print 2) (print 3) (print 4) 3 #f)
     >>> do_and_form(read_line("((print 1) (print 2) (print 3) (print 4) 3 #f)"), env)
     1
     2
@@ -137,7 +137,18 @@ def do_and_form(expressions, env):
     False
     """
     # BEGIN PROBLEM 12
-    "*** YOUR CODE HERE ***"
+    if expressions is nil:
+        return True
+
+    result = True
+    current = expressions
+    while current is not nil:
+        result = scheme_eval(current.first, env)
+        if is_scheme_false(result):
+            return result # short-circuit on the first false value
+        current = current.rest
+
+    return result
     # END PROBLEM 12
 
 
@@ -156,7 +167,17 @@ def do_or_form(expressions, env):
     6
     """
     # BEGIN PROBLEM 12
-    "*** YOUR CODE HERE ***"
+    if expressions is nil:
+        return False
+
+    result = False
+    current = expressions
+    while current is not nil:
+        result = scheme_eval(current.first, env)
+        if is_scheme_true(result):
+            return result # short-circuit on the first true value
+        current = current.rest
+    return result
     # END PROBLEM 12
 
 
@@ -175,11 +196,14 @@ def do_cond_form(expressions, env):
                 raise SchemeError('else must be last')
         else:
             test = scheme_eval(clause.first, env)
+
         if is_scheme_true(test):
-            # BEGIN OPTIONAL PROBLEM 1
-            "*** YOUR CODE HERE ***"
-            # END OPTIONAL PROBLEM 1
+            if clause.rest is nil:
+                return test
+            else:
+                return eval_all(clause.rest, env)
         expressions = expressions.rest
+    return None
 
 
 def do_let_form(expressions, env):
@@ -194,6 +218,7 @@ def do_let_form(expressions, env):
     return eval_all(expressions.rest, let_env)
 
 
+
 def make_let_frame(bindings, env):
     """Create a child frame of Frame ENV that contains the definitions given in
     BINDINGS. The Scheme list BINDINGS must have the form of a proper bindings
@@ -201,12 +226,49 @@ def make_let_frame(bindings, env):
     and a Scheme expression."""
     if not scheme_listp(bindings):
         raise SchemeError('bad bindings list in let form')
-    names = vals = nil
-    # BEGIN OPTIONAL PROBLEM 2
-    "*** YOUR CODE HERE ***"
-    # END OPTIONAL PROBLEM 2
-    return env.make_child_frame(names, vals)
 
+
+
+    # BEGIN OPTIONAL PROBLEM 2 (used as main let implementation)
+    current = bindings
+
+    # We will build names and vals as Scheme lists, preserving order.
+    while current is not nil:
+        binding = current.first      # (name expr)
+        validate_form(binding, 2, 2)
+
+        name = binding.first         # the symbol
+        if not scheme_symbolp(name):
+            raise SchemeError('non-symbol: {0}'.format(name))
+
+        expr = binding.rest.first    # the expression
+        value = scheme_eval(expr, env)
+
+        # Append name to names, and value to vals
+        if names is nil:
+            names = Pair(name, nil)
+            vals = Pair(value, nil)
+        else:
+            # walk to end of names
+            last_name = names
+            while last_name.rest is not nil:
+                last_name = last_name.rest
+            last_name.rest = Pair(name, nil)
+
+            # walk to end of vals
+            last_val = vals
+            while last_val.rest is not nil:
+                last_val = last_val.rest
+            last_val.rest = Pair(value, nil)
+
+        current = current.rest
+    # END OPTIONAL PROBLEM 2
+
+    # Check that all variable names are distinct
+    validate_formals(names)
+
+    # Create the child frame
+    return env.make_child_frame(names, vals)
 
 def do_quasiquote_form(expressions, env):
     """Evaluate a quasiquote form with parameters EXPRESSIONS in
